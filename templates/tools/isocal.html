@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}Isothermal Calorimetry — LMC Lab{% endblock %}
+
+{% block content %}
+<main class="page-content">
+    <div class="container">
+
+        <!-- Breadcrumb -->
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="{{ url_for('main.index') }}">Home</a>
+            <span aria-hidden="true">/</span>
+            <span>Isothermal Calorimetry</span>
+        </nav>
+
+        <h1 class="page-title">Isothermal Calorimetry</h1>
+        <p class="page-subtitle">
+            Upload your raw instrument file, enter the mix design, and download
+            a formatted Excel report with 6 embedded charts.
+        </p>
+
+        <div class="form-card">
+            <form method="POST" enctype="multipart/form-data" id="isocal-form" novalidate>
+                {{ form.hidden_tag() }}
+
+                <!-- ── Step 1: Upload ── -->
+                <div class="step-section">
+                    <div class="step-heading">
+                        <div class="step-number" aria-hidden="true">1</div>
+                        <span class="step-label">Upload Raw File</span>
+                    </div>
+
+                    <div class="upload-zone" id="upload-zone" role="button" tabindex="0"
+                         aria-label="Click or drag to upload .xlsx file">
+                        {{ form.raw_file(id="file-input", accept=".xlsx") }}
+                        <div class="upload-icon" aria-hidden="true">📂</div>
+                        <p class="upload-text">
+                            Drag &amp; drop or <strong>browse</strong>
+                        </p>
+                        <p class="upload-hint">Accepts .xlsx files · Max 10 MB</p>
+                        <p class="upload-filename" id="upload-filename" aria-live="polite"></p>
+                    </div>
+
+                    {% if form.raw_file.errors %}
+                        {% for e in form.raw_file.errors %}
+                            <p class="field-error">{{ e }}</p>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+
+                <!-- ── Step 2: Mix Design ── -->
+                <div class="step-section">
+                    <div class="step-heading">
+                        <div class="step-number" aria-hidden="true">2</div>
+                        <span class="step-label">Mix Design Parameters</span>
+                    </div>
+
+                    <div class="field-row">
+                        <div class="field-group">
+                            <label for="{{ form.paste.id }}">
+                                Paste (g)<span class="required" aria-label="required">*</span>
+                            </label>
+                            {{ form.paste(class="has-error" if form.paste.errors else "", placeholder="e.g. 100.0") }}
+                            {% for e in form.paste.errors %}
+                                <p class="field-error">{{ e }}</p>
+                            {% endfor %}
+                        </div>
+                        <div class="field-group">
+                            <label for="{{ form.clinker.id }}">
+                                Clinker (g)<span class="required" aria-label="required">*</span>
+                            </label>
+                            {{ form.clinker(class="has-error" if form.clinker.errors else "", placeholder="e.g. 75.0") }}
+                            {% for e in form.clinker.errors %}
+                                <p class="field-error">{{ e }}</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="field-row">
+                        <div class="field-group">
+                            <label for="{{ form.water.id }}">
+                                Water (g)<span class="required" aria-label="required">*</span>
+                            </label>
+                            {{ form.water(class="has-error" if form.water.errors else "", placeholder="e.g. 40.0") }}
+                            {% for e in form.water.errors %}
+                                <p class="field-error">{{ e }}</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Optional components -->
+                    <button type="button" class="optional-toggle" id="optional-toggle"
+                            aria-expanded="false" aria-controls="optional-fields">
+                        <span id="optional-arrow">▶</span>
+                        Optional components (Gypsum, NS, NOH, Limestone, CC)
+                    </button>
+
+                    <div class="optional-fields" id="optional-fields">
+                        <div class="field-row">
+                            <div class="field-group">
+                                <label for="{{ form.gypsum.id }}">Gypsum (g)</label>
+                                {{ form.gypsum(placeholder="0") }}
+                                {% for e in form.gypsum.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+                            </div>
+                            <div class="field-group">
+                                <label for="{{ form.ns.id }}">NS (g)</label>
+                                {{ form.ns(placeholder="0") }}
+                                {% for e in form.ns.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+                            </div>
+                        </div>
+                        <div class="field-row">
+                            <div class="field-group">
+                                <label for="{{ form.noh.id }}">NOH (g)</label>
+                                {{ form.noh(placeholder="0") }}
+                                {% for e in form.noh.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+                            </div>
+                            <div class="field-group">
+                                <label for="{{ form.limestone.id }}">Limestone (g)</label>
+                                {{ form.limestone(placeholder="0") }}
+                                {% for e in form.limestone.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+                            </div>
+                        </div>
+                        <div class="field-row">
+                            <div class="field-group">
+                                <label for="{{ form.cc.id }}">CC (g)</label>
+                                {{ form.cc(placeholder="0") }}
+                                {% for e in form.cc.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Step 3: Cutoff Time ── -->
+                <div class="step-section">
+                    <div class="step-heading">
+                        <div class="step-number" aria-hidden="true">3</div>
+                        <span class="step-label">Cutoff Time</span>
+                    </div>
+
+                    <div class="radio-group" role="radiogroup" aria-label="Cutoff time mode">
+                        {% for value, label in form.cutoff_mode.choices %}
+                            <label class="radio-option">
+                                <input
+                                    type="radio"
+                                    name="{{ form.cutoff_mode.name }}"
+                                    value="{{ value }}"
+                                    id="cutoff_{{ value }}"
+                                    {% if form.cutoff_mode.data == value %}checked{% endif %}
+                                />
+                                {{ label }}
+                            </label>
+                        {% endfor %}
+                    </div>
+
+                    <div class="cutoff-manual-input {{ 'visible' if form.cutoff_mode.data == 'manual' else '' }}"
+                         id="cutoff-manual" aria-live="polite">
+                        {{ form.cutoff_value(id="cutoff_value", placeholder="e.g. 360",
+                                             min="1", step="any",
+                                             class="has-error" if form.cutoff_value.errors else "") }}
+                        <span class="unit">min</span>
+                    </div>
+
+                    {% for e in form.cutoff_value.errors %}
+                        <p class="field-error" style="margin-top: 6px;">{{ e }}</p>
+                    {% endfor %}
+                </div>
+
+                <!-- ── Submit ── -->
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary btn-submit" id="submit-btn">
+                        <div class="spinner" aria-hidden="true"></div>
+                        <span class="btn-text">Generate Analysis &rarr;</span>
+                    </button>
+                </div>
+
+            </form>
+        </div>
+
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/isocal.js') }}"></script>
+{% endblock %}

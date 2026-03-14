@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}LMC Lab — Analysis Tools{% endblock %}
+
+{% block content %}
+
+<!-- Hero -->
+<section class="hero" aria-label="Lab introduction">
+    <div class="container">
+        <h1>Laboratory of Construction Materials</h1>
+        <p>École Polytechnique Fédérale de Lausanne</p>
+    </div>
+</section>
+
+<!-- Tools -->
+<section class="section-tools">
+    <div class="container">
+        <h2 class="section-heading">Analysis Tools</h2>
+        <div class="tools-grid" role="list">
+
+            <!-- Isothermal Calorimetry -->
+            <article class="tool-card" role="listitem">
+                <div class="tool-card-icon" aria-hidden="true">🌡️</div>
+                <h3>Isothermal Calorimetry</h3>
+                <p>
+                    Upload raw isocalorimeter output and receive a fully formatted
+                    Excel report with heat flow and cumulative heat curves normalised
+                    to paste, solids, and clinker.
+                </p>
+                <a href="{{ url_for('isocal.isocal') }}" class="btn btn-primary">
+                    Launch Tool &rarr;
+                </a>
+            </article>
+
+            <!-- TGA — Coming Soon -->
+            <article class="tool-card disabled" role="listitem">
+                <span class="tool-card-badge">Coming Soon</span>
+                <div class="tool-card-icon" aria-hidden="true">🔥</div>
+                <h3>Thermogravimetric Analysis</h3>
+                <p>
+                    Process TGA data to quantify bound water, portlandite,
+                    and calcium carbonate content in hardened cement pastes.
+                </p>
+                <span class="btn btn-disabled" aria-disabled="true">Coming Soon</span>
+            </article>
+
+            <!-- MiP — Coming Soon -->
+            <article class="tool-card disabled" role="listitem">
+                <span class="tool-card-badge">Coming Soon</span>
+                <div class="tool-card-icon" aria-hidden="true">💧</div>
+                <h3>Mercury Intrusion Porosimetry</h3>
+                <p>
+                    Analyse MiP data to characterise pore size distributions
+                    and total porosity of cementitious samples.
+                </p>
+                <span class="btn btn-disabled" aria-disabled="true">Coming Soon</span>
+            </article>
+
+        </div>
+    </div>
+</section>
+
+{% endblock %}
