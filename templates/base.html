@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}LMC Lab — EPFL{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+    {% block head %}{% endblock %}
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="nav" role="navigation" aria-label="Main navigation">
+        <div class="container nav-inner">
+            <a href="{{ url_for('main.index') }}" class="nav-brand" aria-label="LMC Lab home">
+                <img
+                    src="{{ url_for('static', filename='img/epfl-logo.png') }}"
+                    alt="EPFL"
+                    class="nav-logo"
+                    onerror="this.src='{{ url_for('static', filename='img/epfl-logo.svg') }}';"
+                />
+                <div class="nav-brand-text">
+                    <span class="nav-brand-title">LMC Lab</span>
+                    <span class="nav-brand-sub">Laboratory of Construction Materials · EPFL</span>
+                </div>
+            </a>
+            <ul class="nav-links" role="list">
+                <li><a href="{{ url_for('main.index') }}"
+                       class="{{ 'active' if request.endpoint == 'main.index' else '' }}">Home</a></li>
+                <li><a href="{{ url_for('isocal.isocal') }}"
+                       class="{{ 'active' if request.endpoint == 'isocal.isocal' else '' }}">Tools</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=True) %}
+        {% if messages %}
+            <div class="container" style="padding-top: 16px;">
+                <ul class="flash-list" role="alert">
+                    {% for category, message in messages %}
+                        <li class="flash {{ category }}">{{ message }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Page content -->
+    {% block content %}{% endblock %}
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+        <div class="container footer-inner">
+            <span>Laboratory of Construction Materials (LMC) &mdash; EPFL</span>
+            <a href="https://www.epfl.ch" target="_blank" rel="noopener">epfl.ch</a>
+        </div>
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

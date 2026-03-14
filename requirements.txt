@@ -1,0 +1,5 @@
+flask
+flask-wtf
+openpyxl
+lxml
+werkzeug
