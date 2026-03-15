@@ -342,7 +342,7 @@ img { max-width: 100%; display: block; }
     border-radius: var(--radius);
     box-shadow: var(--shadow-card);
     padding: 36px 40px;
-    max-width: 680px;
+    max-width: 780px;
 }
 
 /* ── Step heading ── */
@@ -568,6 +568,77 @@ input.has-error {
     color: var(--text-muted);
 }
 
+/* ── Chart customization panels ── */
+.chart-custom-panels {
+    display: none;
+    margin-top: 20px;
+}
+
+.chart-custom-panels.visible { display: block; }
+
+.chart-panel {
+    background: #fafafa;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 24px 20px;
+    margin-bottom: 20px;
+}
+
+.chart-panel-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--epfl-red);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.color-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.color-picker {
+    width: 38px;
+    height: 38px;
+    padding: 2px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    background: #fff;
+    flex-shrink: 0;
+}
+
+.color-picker::-webkit-color-swatch-wrapper { padding: 2px; }
+.color-picker::-webkit-color-swatch { border-radius: 2px; border: none; }
+
+.color-hex {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    font-family: var(--font);
+    color: var(--text-primary);
+    background: #fff;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.color-hex:focus {
+    outline: none;
+    border-color: var(--epfl-red);
+    box-shadow: 0 0 0 3px rgba(232, 16, 26, 0.1);
+}
+
+.chart-preview {
+    margin-top: 20px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    background: #fff;
+    min-height: 300px;
+}
+
 /* ── Submit area ── */
 .form-actions {
     margin-top: 32px;
@@ -640,4 +711,6 @@ input.has-error {
     .hero { padding: 48px 0 44px; }
     .nav-brand-sub { display: none; }
     .footer-inner { flex-direction: column; text-align: center; }
+    .chart-panel { padding: 16px 14px; }
+    .color-field { flex-wrap: wrap; }
 }
