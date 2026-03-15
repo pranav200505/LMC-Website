@@ -158,10 +158,30 @@ def nearest_half_above(value):
     return math.ceil(value * 2) / 2
 
 
+def _pt_to_emu(pt):
+    """Convert points to EMU (English Metric Units). 1 pt = 12700 EMU."""
+    return int(round(pt * 12700))
+
+
 def add_chart(ws, title, x_col, y_col, data_start, last_row,
-              x_max, y_min, y_max, color, x_title, y_title, anchor):
+              x_max, y_min, y_max, color, x_title, y_title, anchor,
+              chart_style=None):
+    """
+    Add a scatter chart to the worksheet.
+
+    chart_style: optional dict with custom appearance settings:
+        - line_thickness_pt (float): line width in points (default 2.25)
+        - line_color (str): hex color e.g. "ED7D31" (no #) — overrides `color` param
+        - x_font_size_pt (float): tick label font size for x-axis
+        - x_font_color (str): hex color for x-axis tick labels
+        - y_font_size_pt (float): tick label font size for y-axis
+        - y_font_color (str): hex color for y-axis tick labels
+        - border_color (str): hex color for plot area border
+    """
     from openpyxl.drawing.colors import ColorChoice, SchemeColor
     from openpyxl.chart.title import Title
+
+    cs = chart_style or {}
 
     chart = ScatterChart()
     chart.style = None
@@ -171,10 +191,20 @@ def add_chart(ws, title, x_col, y_col, data_start, last_row,
     y_ref  = Reference(ws, min_col=y_col, min_row=data_start, max_row=last_row)
     series = Series(y_ref, x_ref, title=title)
     series.marker.symbol = "none"
-    series.graphicalProperties.line.width = 28575
-    series.graphicalProperties.line.solidFill = ColorChoice(
-        schemeClr=SchemeColor(val=color)
-    )
+
+    # Line thickness
+    line_pt = cs.get("line_thickness_pt", 2.25)
+    series.graphicalProperties.line.width = _pt_to_emu(line_pt)
+
+    # Line color: custom hex or fallback to scheme color
+    custom_line_color = cs.get("line_color")
+    if custom_line_color:
+        from openpyxl.drawing.fill import PatternFillProperties, ColorChoice as DrawColorChoice
+        series.graphicalProperties.line.solidFill = custom_line_color
+    else:
+        series.graphicalProperties.line.solidFill = ColorChoice(
+            schemeClr=SchemeColor(val=color)
+        )
     chart.series.append(series)
 
     chart.x_axis.title = Title(tx=_make_rich_text(x_title, 1200))
@@ -195,24 +225,61 @@ def add_chart(ws, title, x_col, y_col, data_start, last_row,
     chart.y_axis.majorTickMark = "out"
 
     ns_uri = "http://schemas.openxmlformats.org/drawingml/2006/main"
-    def _black_line_sppr():
+
+    def _axis_line_sppr(tick_font_size_pt=None, tick_font_color=None):
+        """Build axis graphical properties: black axis line + optional tick font."""
         spPr_el = etree.Element(f"{{{ns_uri}}}spPr")
         ln_el   = etree.SubElement(spPr_el, f"{{{ns_uri}}}ln", w="12700")
         sf_el   = etree.SubElement(ln_el,   f"{{{ns_uri}}}solidFill")
         etree.SubElement(sf_el, f"{{{ns_uri}}}srgbClr", val="000000")
         from openpyxl.chart.shapes import GraphicalProperties
         return GraphicalProperties.from_tree(spPr_el)
-    chart.x_axis.spPr = _black_line_sppr()
-    chart.y_axis.spPr = _black_line_sppr()
 
-    def _white_border_sppr():
+    chart.x_axis.spPr = _axis_line_sppr()
+    chart.y_axis.spPr = _axis_line_sppr()
+
+    # Custom tick label font sizes & colors via lxml
+    x_font_sz = cs.get("x_font_size_pt")
+    x_font_clr = cs.get("x_font_color")
+    y_font_sz = cs.get("y_font_size_pt")
+    y_font_clr = cs.get("y_font_color")
+
+    def _set_tick_font(axis, font_sz_pt=None, font_color=None):
+        """Set tick label font size and/or color on an axis via lxml."""
+        if font_sz_pt is None and font_color is None:
+            return
+        from openpyxl.chart.text import RichText
+        from openpyxl.drawing.text import (RichTextProperties, ListStyle,
+                                            Paragraph, ParagraphProperties,
+                                            CharacterProperties)
+        rpr_kwargs = {}
+        if font_sz_pt is not None:
+            rpr_kwargs["sz"] = int(round(font_sz_pt * 100))
+        rpr = CharacterProperties(**rpr_kwargs)
+        if font_color is not None:
+            # Apply color via lxml since CharacterProperties doesn't expose solidFill easily
+            clr_hex = font_color.lstrip("#")
+            ns = "http://schemas.openxmlformats.org/drawingml/2006/main"
+            sf_el = etree.SubElement(rpr._element, f"{{{ns}}}solidFill")
+            etree.SubElement(sf_el, f"{{{ns}}}srgbClr", val=clr_hex)
+        ppr = ParagraphProperties(defRPr=rpr)
+        para = Paragraph(pPr=ppr)
+        rt = RichText(bodyPr=RichTextProperties(), lstStyle=ListStyle(), p=[para])
+        axis.txPr = rt
+
+    _set_tick_font(chart.x_axis, x_font_sz, x_font_clr)
+    _set_tick_font(chart.y_axis, y_font_sz, y_font_clr)
+
+    # Plot area border
+    border_hex = cs.get("border_color", "FFFFFF")
+    def _border_sppr(hex_color):
         spPr_el = etree.Element(f"{{{ns_uri}}}spPr")
         ln_el   = etree.SubElement(spPr_el, f"{{{ns_uri}}}ln", w="12700")
         sf_el   = etree.SubElement(ln_el,   f"{{{ns_uri}}}solidFill")
-        etree.SubElement(sf_el, f"{{{ns_uri}}}srgbClr", val="FFFFFF")
+        etree.SubElement(sf_el, f"{{{ns_uri}}}srgbClr", val=hex_color)
         from openpyxl.chart.shapes import GraphicalProperties
         return GraphicalProperties.from_tree(spPr_el)
-    chart.plot_area.spPr = _white_border_sppr()
+    chart.plot_area.spPr = _border_sppr(border_hex)
 
     from openpyxl.chart.legend import Legend
     leg = Legend()
@@ -234,7 +301,8 @@ def add_chart(ws, title, x_col, y_col, data_start, last_row,
 
 DATA_START = 4
 
-def build_output(sample_name, data, mix, cutoff_idx, cutoff_min, auto_cutoff, output_path):
+def build_output(sample_name, data, mix, cutoff_idx, cutoff_min, auto_cutoff, output_path,
+                 hf_style=None, h_style=None):
     wb = Workbook()
     ws = wb.active
     ws.title = sample_name
@@ -364,18 +432,36 @@ def build_output(sample_name, data, mix, cutoff_idx, cutoff_min, auto_cutoff, ou
     else:
         hf_ymax_paste = hf_ymax_solids = hf_ymax_clinker = None
 
+    # Resolve chart titles and axis labels from custom styles or defaults
+    _hf = hf_style or {}
+    _h  = h_style or {}
+
+    def _hf_title(base):
+        custom = _hf.get("chart_title", "").strip()
+        return custom if custom else f"{sample_name} ({base})"
+
+    def _h_title(base):
+        custom = _h.get("chart_title", "").strip()
+        return custom if custom else f"{sample_name} ({base})"
+
+    hf_x = _hf.get("x_title", "Time (Days)") or "Time (Days)"
+    hf_y = _hf.get("y_title", "Heat Flow (mW/g)") or "Heat Flow (mW/g)"
+    h_x  = _h.get("x_title", "Time (Days)") or "Time (Days)"
+    h_y  = _h.get("y_title", "Heat (J/g)") or "Heat (J/g)"
+
     charts = [
-        (f"{sample_name} (Paste)",   2,  5, hf_ymax_paste,   "accent2", "Time (Days)", "Heat Flow (mW/g)", f"{cl(23)}8"),
-        (f"{sample_name} (Solids)",  2, 10, None,            "accent1", "Time (Days)", "Heat (J/g)",       f"{cl(31)}26"),
-        (f"{sample_name} (Solids)",  2,  8, hf_ymax_solids,  "accent2", "Time (Days)", "Heat Flow (mW/g)", f"{cl(30)}8"),
-        (f"{sample_name} (Paste)",   2,  7, None,            "accent1", "Time (Days)", "Heat (J/g)",       f"{cl(23)}26"),
-        (f"{sample_name} (Clinker)", 2, 11, hf_ymax_clinker, "accent2", "Time (Days)", "Heat Flow (mW/g)", f"{cl(39)}8"),
-        (f"{sample_name} (Clinker)", 2, 13, None,            "accent1", "Time (Days)", "Heat (J/g)",       f"{cl(39)}26"),
+        (_hf_title("Paste"),   2,  5, hf_ymax_paste,   "accent2", hf_x, hf_y, f"{cl(23)}8",  _hf),
+        (_h_title("Solids"),   2, 10, None,             "accent1", h_x,  h_y,  f"{cl(31)}26", _h),
+        (_hf_title("Solids"),  2,  8, hf_ymax_solids,   "accent2", hf_x, hf_y, f"{cl(30)}8",  _hf),
+        (_h_title("Paste"),    2,  7, None,             "accent1", h_x,  h_y,  f"{cl(23)}26", _h),
+        (_hf_title("Clinker"), 2, 11, hf_ymax_clinker,  "accent2", hf_x, hf_y, f"{cl(39)}8",  _hf),
+        (_h_title("Clinker"),  2, 13, None,             "accent1", h_x,  h_y,  f"{cl(39)}26", _h),
     ]
 
-    for title, x_col, y_col, y_max, color, x_title, y_title, anchor in charts:
+    for title, x_col, y_col, y_max, color, x_title, y_title, anchor, style in charts:
         add_chart(ws, title, x_col, y_col, DATA_START, last,
-                  None, None, y_max, color, x_title, y_title, anchor)
+                  None, None, y_max, color, x_title, y_title, anchor,
+                  chart_style=style)
 
     wb.save(output_path)
     return {
@@ -393,10 +479,16 @@ def build_output(sample_name, data, mix, cutoff_idx, cutoff_min, auto_cutoff, ou
 def run_isocal(input_path, output_path, original_filename=None,
                paste=0.0, clinker=0.0, gypsum=0.0, ns=0.0,
                noh=0.0, limestone=0.0, cc=0.0, water=0.0,
-               cutoff=None):
+               cutoff=None, hf_style=None, h_style=None):
     """
     Process a raw isocalorimeter xlsx file and write the analysis to output_path.
     Raises ValueError for invalid/empty data.
+
+    hf_style / h_style: optional dicts with chart appearance overrides for
+    Heat Flow and Heat charts respectively.  Keys:
+        chart_title, x_title, y_title, line_thickness_pt, line_color,
+        x_font_size_pt, x_font_color, y_font_size_pt, y_font_color,
+        border_color
     Returns a summary dict.
     """
     sample_name, data = read_raw_data(input_path, original_filename)
@@ -406,4 +498,5 @@ def run_isocal(input_path, output_path, original_filename=None,
 
     mix = compute_mix_design(paste, clinker, gypsum, ns, noh, limestone, cc, water)
     cutoff_idx, cutoff_min, auto_cutoff = resolve_cutoff(cutoff, data)
-    return build_output(sample_name, data, mix, cutoff_idx, cutoff_min, auto_cutoff, output_path)
+    return build_output(sample_name, data, mix, cutoff_idx, cutoff_min, auto_cutoff, output_path,
+                        hf_style=hf_style, h_style=h_style)

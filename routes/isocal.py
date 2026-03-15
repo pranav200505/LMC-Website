@@ -29,6 +29,39 @@ def isocal():
 
             cutoff = None if form.cutoff_mode.data == "auto" else form.cutoff_value.data
 
+            # Chart customization (None = use defaults)
+            hf_style = None
+            h_style  = None
+            if form.chart_mode.data == "custom":
+                def _strip_hash(hex_str):
+                    """Remove leading '#' from hex color for openpyxl."""
+                    return hex_str.lstrip("#") if hex_str else None
+
+                hf_style = {
+                    "chart_title":       form.hf_chart_title.data or "",
+                    "x_title":           form.hf_x_title.data or "Time (Days)",
+                    "y_title":           form.hf_y_title.data or "Heat Flow (mW/g)",
+                    "line_thickness_pt": form.hf_line_thickness.data or 2.25,
+                    "line_color":        _strip_hash(form.hf_line_color.data),
+                    "x_font_size_pt":    form.hf_x_font_size.data or 10.0,
+                    "x_font_color":      _strip_hash(form.hf_x_font_color.data),
+                    "y_font_size_pt":    form.hf_y_font_size.data or 10.0,
+                    "y_font_color":      _strip_hash(form.hf_y_font_color.data),
+                    "border_color":      _strip_hash(form.hf_border_color.data),
+                }
+                h_style = {
+                    "chart_title":       form.h_chart_title.data or "",
+                    "x_title":           form.h_x_title.data or "Time (Days)",
+                    "y_title":           form.h_y_title.data or "Heat (J/g)",
+                    "line_thickness_pt": form.h_line_thickness.data or 2.25,
+                    "line_color":        _strip_hash(form.h_line_color.data),
+                    "x_font_size_pt":    form.h_x_font_size.data or 10.0,
+                    "x_font_color":      _strip_hash(form.h_x_font_color.data),
+                    "y_font_size_pt":    form.h_y_font_size.data or 10.0,
+                    "y_font_color":      _strip_hash(form.h_y_font_color.data),
+                    "border_color":      _strip_hash(form.h_border_color.data),
+                }
+
             run_isocal(
                 input_path=input_path,
                 output_path=output_path,
@@ -42,6 +75,8 @@ def isocal():
                 cc=form.cc.data or 0.0,
                 water=form.water.data,
                 cutoff=cutoff,
+                hf_style=hf_style,
+                h_style=h_style,
             )
 
         except Exception as e:

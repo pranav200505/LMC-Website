@@ -165,6 +165,195 @@
                     {% endfor %}
                 </div>
 
+                <!-- ── Step 4: Chart Customization ── -->
+                <div class="step-section">
+                    <div class="step-heading">
+                        <div class="step-number" aria-hidden="true">4</div>
+                        <span class="step-label">Chart Appearance</span>
+                    </div>
+
+                    <div class="radio-group" role="radiogroup" aria-label="Chart customization mode">
+                        {% for value, label in form.chart_mode.choices %}
+                            <label class="radio-option">
+                                <input
+                                    type="radio"
+                                    name="{{ form.chart_mode.name }}"
+                                    value="{{ value }}"
+                                    id="chart_mode_{{ value }}"
+                                    {% if form.chart_mode.data == value %}checked{% endif %}
+                                />
+                                {{ label }}
+                            </label>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Custom settings panels (hidden by default) -->
+                    <div class="chart-custom-panels {{ 'visible' if form.chart_mode.data == 'custom' else '' }}"
+                         id="chart-custom-panels">
+
+                        <!-- ── Heat Flow settings ── -->
+                        <div class="chart-panel">
+                            <h3 class="chart-panel-title">Heat Flow Charts</h3>
+
+                            <div class="field-group">
+                                <label for="{{ form.hf_chart_title.id }}">Chart Title</label>
+                                {{ form.hf_chart_title(placeholder="e.g. Sample (Paste) — leave blank for auto") }}
+                            </div>
+
+                            <div class="field-row">
+                                <div class="field-group">
+                                    <label for="{{ form.hf_x_title.id }}">X-Axis Title</label>
+                                    {{ form.hf_x_title(placeholder="Time (Days)") }}
+                                </div>
+                                <div class="field-group">
+                                    <label for="{{ form.hf_y_title.id }}">Y-Axis Title</label>
+                                    {{ form.hf_y_title(placeholder="Heat Flow (mW/g)") }}
+                                </div>
+                            </div>
+
+                            <div class="field-row">
+                                <div class="field-group">
+                                    <label for="{{ form.hf_line_thickness.id }}">Line Thickness (pt)</label>
+                                    {{ form.hf_line_thickness(min="0.5", max="10", step="0.25", placeholder="2.25") }}
+                                </div>
+                                <div class="field-group">
+                                    <label for="{{ form.hf_line_color.id }}">Line Color</label>
+                                    <div class="color-field">
+                                        <input type="color" id="hf_line_color_picker" value="#ED7D31"
+                                               class="color-picker" />
+                                        {{ form.hf_line_color(class="color-hex", placeholder="#ED7D31") }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="field-row">
+                                <div class="field-group">
+                                    <label for="{{ form.hf_x_font_size.id }}">X-Axis Number Size (pt)</label>
+                                    {{ form.hf_x_font_size(min="6", max="24", step="0.5", placeholder="10") }}
+                                </div>
+                                <div class="field-group">
+                                    <label for="{{ form.hf_x_font_color.id }}">X-Axis Number Color</label>
+                                    <div class="color-field">
+                                        <input type="color" id="hf_x_font_color_picker" value="#000000"
+                                               class="color-picker" />
+                                        {{ form.hf_x_font_color(class="color-hex", placeholder="#000000") }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="field-row">
+                                <div class="field-group">
+                                    <label for="{{ form.hf_y_font_size.id }}">Y-Axis Number Size (pt)</label>
+                                    {{ form.hf_y_font_size(min="6", max="24", step="0.5", placeholder="10") }}
+                                </div>
+                                <div class="field-group">
+                                    <label for="{{ form.hf_y_font_color.id }}">Y-Axis Number Color</label>
+                                    <div class="color-field">
+                                        <input type="color" id="hf_y_font_color_picker" value="#000000"
+                                               class="color-picker" />
+                                        {{ form.hf_y_font_color(class="color-hex", placeholder="#000000") }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="field-row">
+                                <div class="field-group">
+                                    <label for="{{ form.hf_border_color.id }}">Chart Border Color</label>
+                                    <div class="color-field">
+                                        <input type="color" id="hf_border_color_picker" value="#FFFFFF"
+                                               class="color-picker" />
+                                        {{ form.hf_border_color(class="color-hex", placeholder="#FFFFFF") }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Plotly live preview -->
+                            <div class="chart-preview" id="hf-preview"></div>
+                        </div>
+
+                        <!-- ── Heat settings ── -->
+                        <div class="chart-panel">
+                            <h3 class="chart-panel-title">Heat Charts</h3>
+
+                            <div class="field-group">
+                                <label for="{{ form.h_chart_title.id }}">Chart Title</label>
+                                {{ form.h_chart_title(placeholder="e.g. Sample (Paste) — leave blank for auto") }}
+                            </div>
+
+                            <div class="field-row">
+                                <div class="field-group">
+                                    <label for="{{ form.h_x_title.id }}">X-Axis Title</label>
+                                    {{ form.h_x_title(placeholder="Time (Days)") }}
+                                </div>
+                                <div class="field-group">
+                                    <label for="{{ form.h_y_title.id }}">Y-Axis Title</label>
+                                    {{ form.h_y_title(placeholder="Heat (J/g)") }}
+                                </div>
+                            </div>
+
+                            <div class="field-row">
+                                <div class="field-group">
+                                    <label for="{{ form.h_line_thickness.id }}">Line Thickness (pt)</label>
+                                    {{ form.h_line_thickness(min="0.5", max="10", step="0.25", placeholder="2.25") }}
+                                </div>
+                                <div class="field-group">
+                                    <label for="{{ form.h_line_color.id }}">Line Color</label>
+                                    <div class="color-field">
+                                        <input type="color" id="h_line_color_picker" value="#4472C4"
+                                               class="color-picker" />
+                                        {{ form.h_line_color(class="color-hex", placeholder="#4472C4") }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="field-row">
+                                <div class="field-group">
+                                    <label for="{{ form.h_x_font_size.id }}">X-Axis Number Size (pt)</label>
+                                    {{ form.h_x_font_size(min="6", max="24", step="0.5", placeholder="10") }}
+                                </div>
+                                <div class="field-group">
+                                    <label for="{{ form.h_x_font_color.id }}">X-Axis Number Color</label>
+                                    <div class="color-field">
+                                        <input type="color" id="h_x_font_color_picker" value="#000000"
+                                               class="color-picker" />
+                                        {{ form.h_x_font_color(class="color-hex", placeholder="#000000") }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="field-row">
+                                <div class="field-group">
+                                    <label for="{{ form.h_y_font_size.id }}">Y-Axis Number Size (pt)</label>
+                                    {{ form.h_y_font_size(min="6", max="24", step="0.5", placeholder="10") }}
+                                </div>
+                                <div class="field-group">
+                                    <label for="{{ form.h_y_font_color.id }}">Y-Axis Number Color</label>
+                                    <div class="color-field">
+                                        <input type="color" id="h_y_font_color_picker" value="#000000"
+                                               class="color-picker" />
+                                        {{ form.h_y_font_color(class="color-hex", placeholder="#000000") }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="field-row">
+                                <div class="field-group">
+                                    <label for="{{ form.h_border_color.id }}">Chart Border Color</label>
+                                    <div class="color-field">
+                                        <input type="color" id="h_border_color_picker" value="#FFFFFF"
+                                               class="color-picker" />
+                                        {{ form.h_border_color(class="color-hex", placeholder="#FFFFFF") }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Plotly live preview -->
+                            <div class="chart-preview" id="h-preview"></div>
+                        </div>
+
+                    </div>
+                </div>
+
                 <!-- ── Submit ── -->
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary btn-submit" id="submit-btn">
@@ -178,6 +367,10 @@
 
     </div>
 </main>
+{% endblock %}
+
+{% block head %}
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 {% endblock %}
 
 {% block scripts %}
