@@ -6,8 +6,10 @@ from wtforms.validators import DataRequired, Optional, NumberRange
 
 class IsocalForm(FlaskForm):
     raw_file      = FileField(
-                        "Raw .xlsx File",
-                        validators=[FileRequired(), FileAllowed(["xlsx"], "Only .xlsx files are accepted.")])
+                        "Raw Excel File",
+                        validators=[FileRequired(),
+                                    FileAllowed(["xlsx", "xlsm", "xls"],
+                                                "Only .xlsx, .xlsm, and .xls files are accepted.")])
 
     # Required mix design parameters
     paste         = FloatField("Paste (g)",    validators=[DataRequired(), NumberRange(min=0.001, message="Must be > 0")])

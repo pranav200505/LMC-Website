@@ -33,23 +33,21 @@ BOX         = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 # RAW DATA READING
 # ─────────────────────────────────────────────
 
-def read_raw_data(raw_file, original_filename=None):
-    """
-    Read raw instrument xlsx.
-    Sheet 'Raw data': Col A=time(s), Col D=Heat Flow(W), Col E=Heat(J).
-    Rows 1-2 are headers/units. Data starts row 3.
-    Valid data: t >= 60s.
-
-    original_filename: the user's original upload filename, used for sample_name
-                       derivation so that temp file paths don't pollute the name.
-
-    Returns: sample_name (str), data (list of dicts)
-    """
-    wb = openpyxl.load_workbook(raw_file, data_only=True)
-
-    # Derive sample name from original filename (not temp path)
+def _default_sample_name(original_filename, raw_file):
     name_source = original_filename if original_filename else raw_file
-    sample_name = os.path.splitext(os.path.basename(name_source))[0]
+    return os.path.splitext(os.path.basename(name_source))[0]
+
+
+def _finalize_data(data):
+    """Trim trailing flatlined rows (heat flow and heat both ~0)."""
+    while data and abs(data[-1]["heat_flow_W"]) < 1e-5 and abs(data[-1]["heat_J"]) < 1e-3:
+        data.pop()
+    return data
+
+
+def _read_raw_xlsx(raw_file, sample_name):
+    """Read .xlsx / .xlsm via openpyxl. Returns (sample_name, data)."""
+    wb = openpyxl.load_workbook(raw_file, data_only=True)
 
     if "Experiment info" in wb.sheetnames:
         ws_info = wb["Experiment info"]
@@ -63,24 +61,111 @@ def read_raw_data(raw_file, original_filename=None):
                     except IndexError:
                         pass
 
+    if "Raw data" not in wb.sheetnames:
+        raise ValueError("Expected a sheet named 'Raw data' in the uploaded file.")
+
     ws_raw = wb["Raw data"]
     data = []
     for row in ws_raw.iter_rows(min_row=3, values_only=True):
+        if not row:
+            continue
         t = row[0]
         if t is None or not isinstance(t, (int, float)):
             continue
         t = float(t)
         if t < 60:
             continue
-        hf = float(row[3]) if row[3] is not None else 0.0
-        h  = float(row[4]) if row[4] is not None else 0.0
+        hf = float(row[3]) if len(row) > 3 and row[3] is not None else 0.0
+        h  = float(row[4]) if len(row) > 4 and row[4] is not None else 0.0
         data.append({"time_s": t, "heat_flow_W": hf, "heat_J": h})
 
-    # Trim trailing flatlined rows
-    while data and abs(data[-1]["heat_flow_W"]) < 1e-5 and abs(data[-1]["heat_J"]) < 1e-3:
-        data.pop()
+    return sample_name, _finalize_data(data)
 
-    return sample_name, data
+
+def _read_raw_xls(raw_file, sample_name):
+    """Read legacy .xls via xlrd. Returns (sample_name, data)."""
+    try:
+        import xlrd
+    except ImportError as e:
+        raise ValueError(
+            "Legacy .xls files require the 'xlrd' package. "
+            "Please install it (xlrd>=1.2.0,<2.0.0)."
+        ) from e
+
+    book = xlrd.open_workbook(raw_file)
+    sheet_names = book.sheet_names()
+
+    if "Experiment info" in sheet_names:
+        ws_info = book.sheet_by_name("Experiment info")
+        for row_idx in range(ws_info.nrows):
+            row = ws_info.row_values(row_idx)
+            for i, val in enumerate(row):
+                if isinstance(val, str) and "name" in val.lower():
+                    if i + 1 < len(row):
+                        nv = row[i + 1]
+                        if nv:
+                            sample_name = str(nv).replace(".rslt", "").strip()
+
+    if "Raw data" not in sheet_names:
+        raise ValueError("Expected a sheet named 'Raw data' in the uploaded file.")
+
+    ws_raw = book.sheet_by_name("Raw data")
+    data = []
+    # Data starts at 1-indexed row 3 -> 0-indexed row 2
+    for row_idx in range(2, ws_raw.nrows):
+        row = ws_raw.row_values(row_idx)
+        if not row:
+            continue
+        t = row[0]
+        if t == "" or t is None or not isinstance(t, (int, float)):
+            continue
+        t = float(t)
+        if t < 60:
+            continue
+        hf_raw = row[3] if len(row) > 3 else ""
+        h_raw  = row[4] if len(row) > 4 else ""
+        hf = float(hf_raw) if isinstance(hf_raw, (int, float)) else 0.0
+        h  = float(h_raw)  if isinstance(h_raw,  (int, float)) else 0.0
+        data.append({"time_s": t, "heat_flow_W": hf, "heat_J": h})
+
+    return sample_name, _finalize_data(data)
+
+
+def read_raw_data(raw_file, original_filename=None):
+    """
+    Read raw instrument file (.xlsx, .xlsm, or .xls).
+
+    Expected layout (same for all formats):
+      - Sheet 'Raw data': Col A=time(s), Col D=Heat Flow(W), Col E=Heat(J).
+      - Rows 1-2 are headers/units; data starts row 3.
+      - Valid data: t >= 60s.
+      - Optional 'Experiment info' sheet used to pull the sample name.
+
+    original_filename: the user's original upload filename, used for extension
+                       detection and sample_name derivation.
+
+    Returns: (sample_name, data) where data is a list of dicts.
+    """
+    sample_name = _default_sample_name(original_filename, raw_file)
+
+    ext_source = original_filename if original_filename else raw_file
+    ext = os.path.splitext(ext_source)[1].lower()
+
+    if ext in (".xlsx", ".xlsm"):
+        return _read_raw_xlsx(raw_file, sample_name)
+    if ext == ".xls":
+        return _read_raw_xls(raw_file, sample_name)
+
+    # Unknown extension (form validation should prevent this); try xlsx then xls
+    try:
+        return _read_raw_xlsx(raw_file, sample_name)
+    except Exception:
+        try:
+            return _read_raw_xls(raw_file, sample_name)
+        except Exception as e:
+            raise ValueError(
+                f"Unsupported file type '{ext}'. Please upload a .xlsx, .xlsm, or .xls file."
+            ) from e
 
 
 # ─────────────────────────────────────────────
