@@ -11,7 +11,6 @@ from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.chart import ScatterChart, Reference, Series
-from lxml import etree
 
 
 # ─────────────────────────────────────────────
@@ -227,106 +226,31 @@ def data_cell(ws, row, col, val):
 # CHART BUILDER
 # ─────────────────────────────────────────────
 
-def _make_rich_text(text, sz_hundredths):
-    from openpyxl.chart.text import RichText, Text
-    from openpyxl.chart.title import Title
-    from openpyxl.drawing.text import (RichTextProperties, ListStyle,
-                                        Paragraph, ParagraphProperties,
-                                        RegularTextRun, CharacterProperties)
-    rpr  = CharacterProperties(sz=sz_hundredths)
-    run  = RegularTextRun(t=text, rPr=rpr)
-    para = Paragraph(r=[run], pPr=ParagraphProperties())
-    rt   = RichText(bodyPr=RichTextProperties(), lstStyle=ListStyle(), p=[para])
-    return Text(rich=rt)
-
 def nearest_half_above(value):
     return math.ceil(value * 2) / 2
 
 
 def _pt_to_emu(pt):
-    """Convert points to EMU (English Metric Units). 1 pt = 12700 EMU."""
     return int(round(pt * 12700))
-
-
-def _build_tick_txPr(font_sz_pt=None, font_hex=None):
-    """
-    Build an axis tick-label RichText (<c:txPr>) via raw lxml.
-    Returns None when no customization is requested so the chart
-    falls back to Excel's default tick formatting.
-    """
-    if font_sz_pt is None and font_hex is None:
-        return None
-
-    from openpyxl.chart.text import RichText
-    ns = "http://schemas.openxmlformats.org/drawingml/2006/main"
-
-    txPr_el = etree.Element(f"{{{ns}}}txPr")
-    etree.SubElement(
-        txPr_el, f"{{{ns}}}bodyPr",
-        rot="-60000000", spcFirstLastPara="1",
-        vertOverflow="ellipsis", wrap="square",
-        anchor="ctr", anchorCtr="1",
-    )
-    etree.SubElement(txPr_el, f"{{{ns}}}lstStyle")
-    p_el   = etree.SubElement(txPr_el, f"{{{ns}}}p")
-    pPr_el = etree.SubElement(p_el, f"{{{ns}}}pPr")
-
-    defRPr_attrs = {}
-    if font_sz_pt is not None:
-        defRPr_attrs["sz"] = str(int(round(font_sz_pt * 100)))
-    defRPr_el = etree.SubElement(pPr_el, f"{{{ns}}}defRPr", **defRPr_attrs)
-
-    if font_hex is not None:
-        sf_el = etree.SubElement(defRPr_el, f"{{{ns}}}solidFill")
-        etree.SubElement(sf_el, f"{{{ns}}}srgbClr", val=font_hex.lstrip("#"))
-
-    etree.SubElement(p_el, f"{{{ns}}}endParaRPr", lang="en-US")
-    return RichText.from_tree(txPr_el)
 
 
 def add_chart(ws, title, x_col, y_col, data_start, last_row,
               x_max, y_min, y_max, color, x_title, y_title, anchor,
               chart_style=None):
-    """
-    Add a clean scatter chart to the worksheet.
-
-    The default output mimics the reference "good graph": black axis lines,
-    orange/blue line, no legend, no plot-area border, no gridlines.
-
-    chart_style: optional dict with custom appearance settings:
-        - title_size_pt (float): chart title font size in points (default 14)
-        - axis_title_size_pt (float): axis title font size in points (default 12)
-        - line_thickness_pt (float): line width in points (default 2.25)
-        - line_color (str): hex color e.g. "ED7D31" (no #) — overrides `color` param
-        - x_font_size_pt (float): tick label font size for x-axis
-        - x_font_color (str): hex color for x-axis tick labels
-        - y_font_size_pt (float): tick label font size for y-axis
-        - y_font_color (str): hex color for y-axis tick labels
-        - border_color (str): hex color for plot area border (default: no border)
-    """
     from openpyxl.drawing.colors import ColorChoice, SchemeColor
-    from openpyxl.chart.title import Title
-    from openpyxl.chart.shapes import GraphicalProperties
 
     cs = chart_style or {}
-    ns_uri = "http://schemas.openxmlformats.org/drawingml/2006/main"
 
     chart = ScatterChart()
-    chart.style = 2  # built-in clean style; our overrides still win
+    chart.title = cs.get("chart_title") or title
+    chart.x_axis.title = cs.get("x_title") or x_title
+    chart.y_axis.title = cs.get("y_title") or y_title
 
-    # ── Title ───────────────────────────────────────────────
-    title_sz = int(round(cs.get("title_size_pt", 14.0) * 100))
-    chart.title = Title(tx=_make_rich_text(title, title_sz))
-    chart.title.overlay = False
-
-    # ── Series ──────────────────────────────────────────────
     x_ref  = Reference(ws, min_col=x_col, min_row=data_start, max_row=last_row)
     y_ref  = Reference(ws, min_col=y_col, min_row=data_start, max_row=last_row)
     series = Series(y_ref, x_ref, title=title)
     series.marker.symbol = "none"
-
-    line_pt = cs.get("line_thickness_pt", 2.25)
-    series.graphicalProperties.line.width = _pt_to_emu(line_pt)
+    series.graphicalProperties.line.width = _pt_to_emu(cs.get("line_thickness_pt", 2.25))
 
     custom_line_color = cs.get("line_color")
     if custom_line_color:
@@ -337,14 +261,6 @@ def add_chart(ws, title, x_col, y_col, data_start, last_row,
         )
     chart.series.append(series)
 
-    # ── Axis titles ─────────────────────────────────────────
-    axis_title_sz = int(round(cs.get("axis_title_size_pt", 12.0) * 100))
-    chart.x_axis.title = Title(tx=_make_rich_text(x_title, axis_title_sz))
-    chart.y_axis.title = Title(tx=_make_rich_text(y_title, axis_title_sz))
-    chart.x_axis.title.overlay = False
-    chart.y_axis.title.overlay = False
-
-    # ── Scaling ─────────────────────────────────────────────
     if x_max is not None:
         chart.x_axis.scaling.max = x_max
     if y_min is not None:
@@ -353,51 +269,18 @@ def add_chart(ws, title, x_col, y_col, data_start, last_row,
         chart.y_axis.scaling.max = nearest_half_above(y_max)
         chart.y_axis.majorUnit   = 0.5
 
-    # General format lets Excel show "0", "2", "0.2" naturally
-    chart.x_axis.numFmt = "General"
-    chart.y_axis.numFmt = "General"
-
+    chart.x_axis.tickLblPos = "low"
+    chart.y_axis.tickLblPos = "low"
+    chart.x_axis.delete = False
+    chart.y_axis.delete = False
     chart.x_axis.majorTickMark = "out"
     chart.y_axis.majorTickMark = "out"
     chart.x_axis.minorTickMark = "none"
     chart.y_axis.minorTickMark = "none"
-
-    # ── Black axis lines (thin, clean) ──────────────────────
-    def _axis_line_sppr():
-        spPr_el = etree.Element(f"{{{ns_uri}}}spPr")
-        ln_el   = etree.SubElement(spPr_el, f"{{{ns_uri}}}ln", w="9525")  # 0.75 pt
-        sf_el   = etree.SubElement(ln_el,   f"{{{ns_uri}}}solidFill")
-        etree.SubElement(sf_el, f"{{{ns_uri}}}srgbClr", val="000000")
-        return GraphicalProperties.from_tree(spPr_el)
-
-    chart.x_axis.spPr = _axis_line_sppr()
-    chart.y_axis.spPr = _axis_line_sppr()
-
-    # ── Custom tick label font size / color ────────────────
-    x_tick_txPr = _build_tick_txPr(cs.get("x_font_size_pt"), cs.get("x_font_color"))
-    if x_tick_txPr is not None:
-        chart.x_axis.txPr = x_tick_txPr
-
-    y_tick_txPr = _build_tick_txPr(cs.get("y_font_size_pt"), cs.get("y_font_color"))
-    if y_tick_txPr is not None:
-        chart.y_axis.txPr = y_tick_txPr
-
-    # ── Plot area border (default: NONE — matches clean look) ─
-    border_hex = cs.get("border_color")
-    if border_hex:
-        spPr_el = etree.Element(f"{{{ns_uri}}}spPr")
-        ln_el   = etree.SubElement(spPr_el, f"{{{ns_uri}}}ln", w="9525")
-        sf_el   = etree.SubElement(ln_el,   f"{{{ns_uri}}}solidFill")
-        etree.SubElement(sf_el, f"{{{ns_uri}}}srgbClr", val=border_hex.lstrip("#"))
-        chart.plot_area.spPr = GraphicalProperties.from_tree(spPr_el)
-
-    # ── NO legend (single-series scatter doesn't need one) ──
-    chart.legend = None
-
-    # ── No gridlines ────────────────────────────────────────
     chart.x_axis.majorGridlines = None
     chart.y_axis.majorGridlines = None
 
+    chart.legend = None
     chart.width  = 15
     chart.height = 7.5
 
