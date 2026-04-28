@@ -31,13 +31,13 @@
                     </div>
 
                     <div class="upload-zone" id="upload-zone" role="button" tabindex="0"
-                         aria-label="Click or drag to upload .xlsx file">
-                        {{ form.raw_file(id="file-input", accept=".xlsx") }}
+                         aria-label="Click or drag to upload Excel file">
+                        {{ form.raw_file(id="file-input", accept=".xlsx,.xlsm,.xls") }}
                         <div class="upload-icon" aria-hidden="true">📂</div>
                         <p class="upload-text">
                             Drag &amp; drop or <strong>browse</strong>
                         </p>
-                        <p class="upload-hint">Accepts .xlsx files · Max 10 MB</p>
+                        <p class="upload-hint">Accepts .xlsx, .xlsm, .xls files · Max 10 MB</p>
                         <p class="upload-filename" id="upload-filename" aria-live="polite"></p>
                     </div>
 

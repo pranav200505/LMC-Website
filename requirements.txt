@@ -3,3 +3,4 @@ flask-wtf
 openpyxl
 lxml
 werkzeug
+xlrd>=1.2.0,<2.0.0
