@@ -269,6 +269,9 @@ def add_chart(ws, title, x_col, y_col, data_start, last_row,
         chart.y_axis.scaling.max = nearest_half_above(y_max)
         chart.y_axis.majorUnit   = 0.5
 
+    chart.x_axis.numFmt = "0"
+    chart.y_axis.numFmt = "0"
+
     chart.x_axis.tickLblPos = "low"
     chart.y_axis.tickLblPos = "low"
     chart.x_axis.delete = False
@@ -281,8 +284,8 @@ def add_chart(ws, title, x_col, y_col, data_start, last_row,
     chart.y_axis.majorGridlines = None
 
     chart.legend = None
-    chart.width  = 15
-    chart.height = 7.5
+    chart.width  = 12
+    chart.height = 12
 
     ws.add_chart(chart, anchor)
 
