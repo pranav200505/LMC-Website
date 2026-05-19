@@ -269,6 +269,9 @@ def add_chart(ws, title, x_col, y_col, data_start, last_row,
         chart.y_axis.scaling.max = nearest_half_above(y_max)
         chart.y_axis.majorUnit   = 0.5
 
+    chart.x_axis.numFmt = "0"
+    chart.y_axis.numFmt = "0"
+
     chart.x_axis.tickLblPos = "low"
     chart.y_axis.tickLblPos = "low"
     chart.x_axis.delete = False
@@ -281,8 +284,8 @@ def add_chart(ws, title, x_col, y_col, data_start, last_row,
     chart.y_axis.majorGridlines = None
 
     chart.legend = None
-    chart.width  = 15
-    chart.height = 7.5
+    chart.width  = 12
+    chart.height = 12
 
     ws.add_chart(chart, anchor)
 
@@ -299,9 +302,8 @@ def build_output(sample_name, data, mix, cutoff_idx, cutoff_min, auto_cutoff, ou
     ws = wb.active
     ws.title = sample_name
 
-    n          = len(data)
-    last       = DATA_START + n - 1
-    cutoff_row = DATA_START + cutoff_idx
+    n    = len(data)
+    last = DATA_START + n - 1
 
     # Row 1: sample name
     ws["A1"] = sample_name
@@ -362,8 +364,26 @@ def build_output(sample_name, data, mix, cutoff_idx, cutoff_min, auto_cutoff, ou
     ws["P10"].border        = BOX
     ws["P10"].number_format = "0.0"
 
-    ws["Q10"] = "← AUTO (120 min) — edit to override" if auto_cutoff else "← User-specified"
+    ws["Q10"] = "← AUTO (120 min)" if auto_cutoff else "← User-specified"
     ws["Q10"].font = Font(italic=True, color="888888")
+
+    # ── Pre-compute derived columns ─────────────────────────────
+    # Writing formulas (e.g. =C4*1000/$O$8) for thousands of rows
+    # forces Excel to recalculate them on every open/edit, which
+    # makes the file laggy. Compute the values in Python and write
+    # plain numbers so Excel can render instantly.
+    paste_mass            = mix["paste"]
+    solids_in_paste_mass  = mix["solids_in_paste"]
+    clinker_in_paste_mass = mix["clinker_in_paste"]
+
+    heat_J_at_cutoff = data[cutoff_idx]["heat_J"] if 0 <= cutoff_idx < len(data) else 0.0
+
+    def _safe_div(num, den):
+        return num / den if den else 0.0
+
+    paste_h_cutoff   = _safe_div(heat_J_at_cutoff, paste_mass)
+    solids_h_cutoff  = _safe_div(heat_J_at_cutoff, solids_in_paste_mass)
+    clinker_h_cutoff = _safe_div(heat_J_at_cutoff, clinker_in_paste_mass)
 
     # Data rows
     for i, rd in enumerate(data):
@@ -379,17 +399,29 @@ def build_output(sample_name, data, mix, cutoff_idx, cutoff_min, auto_cutoff, ou
         ws.cell(r, 3, hfW)
         ws.cell(r, 4, hJ)
 
-        ws.cell(r, 5,  f"=C{r}*1000/$O$8")
-        ws.cell(r, 6,  f"=D{r}/$O$8")
-        ws.cell(r, 7,  f"=IF($A{r}<=$P$10,0,F{r}-F{cutoff_row})")
+        # Paste basis
+        hf_p = _safe_div(hfW * 1000, paste_mass)
+        h_p  = _safe_div(hJ, paste_mass)
+        adj_h_p = 0.0 if tmin <= cutoff_min else (h_p - paste_h_cutoff)
+        ws.cell(r, 5, hf_p)
+        ws.cell(r, 6, h_p)
+        ws.cell(r, 7, adj_h_p)
 
-        ws.cell(r, 8,  f"=C{r}*1000/$P$8")
-        ws.cell(r, 9,  f"=D{r}/$P$8")
-        ws.cell(r, 10, f"=IF($A{r}<=$P$10,0,I{r}-I{cutoff_row})")
+        # Solids basis
+        hf_s = _safe_div(hfW * 1000, solids_in_paste_mass)
+        h_s  = _safe_div(hJ, solids_in_paste_mass)
+        adj_h_s = 0.0 if tmin <= cutoff_min else (h_s - solids_h_cutoff)
+        ws.cell(r, 8,  hf_s)
+        ws.cell(r, 9,  h_s)
+        ws.cell(r, 10, adj_h_s)
 
-        ws.cell(r, 11, f"=C{r}*1000/$Q$8")
-        ws.cell(r, 12, f"=D{r}/$Q$8")
-        ws.cell(r, 13, f"=IF($A{r}<=$P$10,0,L{r}-L{cutoff_row})")
+        # Clinker basis
+        hf_c = _safe_div(hfW * 1000, clinker_in_paste_mass)
+        h_c  = _safe_div(hJ, clinker_in_paste_mass)
+        adj_h_c = 0.0 if tmin <= cutoff_min else (h_c - clinker_h_cutoff)
+        ws.cell(r, 11, hf_c)
+        ws.cell(r, 12, h_c)
+        ws.cell(r, 13, adj_h_c)
 
     # Number formats
     for r in range(DATA_START, DATA_START + n):
@@ -411,16 +443,12 @@ def build_output(sample_name, data, mix, cutoff_idx, cutoff_min, auto_cutoff, ou
     ws.freeze_panes = "A4"
 
     # Charts
-    paste_mass   = mix["paste"]
-    solids_mass  = mix["solids_in_paste"]
-    clinker_mass = mix["clinker_in_paste"]
-
     post_cutoff_data = [rd for rd in data if rd["time_s"] / 60.0 > cutoff_min]
     if post_cutoff_data:
         max_hf_W = max(rd["heat_flow_W"] for rd in post_cutoff_data)
-        hf_ymax_paste   = round(max_hf_W * 1000 / paste_mass   * 1.2, 2) if paste_mass   > 0 else None
-        hf_ymax_solids  = round(max_hf_W * 1000 / solids_mass  * 1.2, 2) if solids_mass  > 0 else None
-        hf_ymax_clinker = round(max_hf_W * 1000 / clinker_mass * 1.2, 2) if clinker_mass > 0 else None
+        hf_ymax_paste   = round(max_hf_W * 1000 / paste_mass            * 1.2, 2) if paste_mass            > 0 else None
+        hf_ymax_solids  = round(max_hf_W * 1000 / solids_in_paste_mass  * 1.2, 2) if solids_in_paste_mass  > 0 else None
+        hf_ymax_clinker = round(max_hf_W * 1000 / clinker_in_paste_mass * 1.2, 2) if clinker_in_paste_mass > 0 else None
     else:
         hf_ymax_paste = hf_ymax_solids = hf_ymax_clinker = None
 
@@ -441,13 +469,20 @@ def build_output(sample_name, data, mix, cutoff_idx, cutoff_min, auto_cutoff, ou
     h_x  = _h.get("x_title", "Time (Days)") or "Time (Days)"
     h_y  = _h.get("y_title", "Heat (J/g)") or "Heat (J/g)"
 
+    # 12×12 cm charts laid out in a 3-column × 2-row grid with enough
+    # breathing room that adjacent charts never overlap. Anchor columns
+    # 23/35/47 (≈12 standard-width columns apart) and rows 8/35 (27
+    # rows apart, comfortably more than the ~23 rows a 12 cm chart needs).
+    HF_ROW, H_ROW = 8, 35
+    COL_PASTE, COL_SOLIDS, COL_CLINKER = 23, 35, 47
+
     charts = [
-        (_hf_title("Paste"),   2,  5, hf_ymax_paste,   "accent2", hf_x, hf_y, f"{cl(23)}8",  _hf),
-        (_h_title("Solids"),   2, 10, None,             "accent1", h_x,  h_y,  f"{cl(31)}26", _h),
-        (_hf_title("Solids"),  2,  8, hf_ymax_solids,   "accent2", hf_x, hf_y, f"{cl(30)}8",  _hf),
-        (_h_title("Paste"),    2,  7, None,             "accent1", h_x,  h_y,  f"{cl(23)}26", _h),
-        (_hf_title("Clinker"), 2, 11, hf_ymax_clinker,  "accent2", hf_x, hf_y, f"{cl(39)}8",  _hf),
-        (_h_title("Clinker"),  2, 13, None,             "accent1", h_x,  h_y,  f"{cl(39)}26", _h),
+        (_hf_title("Paste"),   2,  5, hf_ymax_paste,   "accent2", hf_x, hf_y, f"{cl(COL_PASTE)}{HF_ROW}",  _hf),
+        (_hf_title("Solids"),  2,  8, hf_ymax_solids,  "accent2", hf_x, hf_y, f"{cl(COL_SOLIDS)}{HF_ROW}", _hf),
+        (_hf_title("Clinker"), 2, 11, hf_ymax_clinker, "accent2", hf_x, hf_y, f"{cl(COL_CLINKER)}{HF_ROW}", _hf),
+        (_h_title("Paste"),    2,  7, None,            "accent1", h_x,  h_y,  f"{cl(COL_PASTE)}{H_ROW}",   _h),
+        (_h_title("Solids"),   2, 10, None,            "accent1", h_x,  h_y,  f"{cl(COL_SOLIDS)}{H_ROW}",  _h),
+        (_h_title("Clinker"),  2, 13, None,            "accent1", h_x,  h_y,  f"{cl(COL_CLINKER)}{H_ROW}", _h),
     ]
 
     for title, x_col, y_col, y_max, color, x_title, y_title, anchor, style in charts:
